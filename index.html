@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dou Knockout - Glichy N Running</title>
+    <style>
+        @font-face {
+            font-family: 'Eigerdals Heavy';
+            src: url('fonts/Eigerdals-Heavy.ttf') format('truetype');
+            font-weight: bold;
+        }
+
+        @font-face {
+            font-family: 'M Plus 1c Heavy';
+            src: url('fonts/mplus-1c-heavy.ttf') format('truetype');
+            font-weight: bold;
+        }
+
+        body {
+            font-family: 'Eigerdals Heavy', 'M Plus 1c Heavy', Arial, sans-serif;
+            text-align: center;
+            background-color: #1a1a1a;
+            color: white;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
+        /* Contenedor del juego */
+        #game-container {
+            position: relative;
+            margin-top: 15px;
+        }
+
+        canvas {
+            background-color: #2b2b2b;
+            border: 4px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            display: block;
+        }
+
+        .instructions {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Glichy N Running</h1>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="300"></canvas>
+    </div>
+
+    <p class="instructions">Presiona <strong>ESPACIO</strong> o <strong>FLECHA ARRIBA</strong> para saltar | <strong>R</strong> para reiniciar</p>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- RUTA BASE DE TUS SPRITES (Ajustada a tu estructura de carpetas) ---
+        const basePath = 'Images/Glichy Guy Customs/Default/';
+
+        // Cargar las imágenes
+        const images = {};
+        const imageSources = {
+            idle1: basePath + 'Player_Idle.png',
+            idle2: basePath + 'Player_Idle2.png',
+            jump: basePath + 'Player_Jump.png',
+            run1: basePath + 'Player_Moving1.png',
+            run2: basePath + 'Player_Moving2.png',
+            run3: basePath + 'Player_Moving3.png',
+            run4: basePath + 'Player_Moving4.png'
+        };
+
+        let loadedImages = 0;
+        const totalImages = Object.keys(imageSources).length;
+
+        for (let key in imageSources) {
+            images[key] = new Image();
+            images[key].src = imageSources[key];
+            images[key].onload = () => {
+                loadedImages++;
+                if (loadedImages === totalImages) {
+                    // Iniciar el bucle cuando todas las imágenes carguen
+                    requestAnimationFrame(gameLoop);
+                }
+            };
+        }
+
+        // --- PROPIEDADES DEL JUEGO ---
+        let gravity = 0.6;
+        let gameSpeed = 5;
+        let score = 0;
+        let gameOver = false;
+        let frameCount = 0;
+
+        // Jugador
+        const player = {
+            x: 80,
+            y: 200,
+            width: 50,
+            height: 50,
+            velocityY: 0,
+            isJumping: false,
+            runFrame: 0,
+            groundY: 200
+        };
+
+        // Obstáculos
+        let obstacles = [];
+        let obstacleTimer = 0;
+
+        // Control de teclado
+        window.addEventListener('keydown', (e) => {
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && !player.isJumping && !gameOver) {
+                player.velocityY = -12;
+                player.isJumping = true;
+            }
+            if (e.code === 'KeyR' && gameOver) {
+                resetGame();
+            }
+        });
+
+        function resetGame() {
+            player.y = player.groundY;
+            player.velocityY = 0;
+            player.isJumping = false;
+            obstacles = [];
+            score = 0;
+            gameSpeed = 5;
+            gameOver = false;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            if (gameOver) return;
+
+            frameCount++;
+            score += 0.1;
+
+            // Aumentar la velocidad paulatinamente
+            gameSpeed += 0.001;
+
+            // Física del Salto
+            player.velocityY += gravity;
+            player.y += player.velocityY;
+
+            if (player.y >= player.groundY) {
+                player.y = player.groundY;
+                player.velocityY = 0;
+                player.isJumping = false;
+            }
+
+            // Animación del jugador
+            if (!player.isJumping && frameCount % 6 === 0) {
+                player.runFrame = (player.runFrame + 1) % 4; // Ciclo entre 0, 1, 2, 3
+            }
+
+            // Generar Obstáculos
+            obstacleTimer++;
+            if (obstacleTimer > 100 - (gameSpeed * 2) && Math.random() < 0.5) {
+                obstacles.push({
+                    x: canvas.width,
+                    y: player.groundY + 10,
+                    width: 30,
+                    height: 40
+                });
+                obstacleTimer = 0;
+            }
+
+            // Mover y verificar colisiones con obstáculos
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.x -= gameSpeed;
+
+                // Colisión (AABB simples)
+                if (
+                    player.x < obs.x + obs.width &&
+                    player.x + player.width > obs.x &&
+                    player.y < obs.y + obs.height &&
+                    player.y + player.height > obs.y
+                ) {
+                    gameOver = true;
+                }
+
+                // Eliminar fuera de pantalla
+                if (obs.x + obs.width < 0) {
+                    obstacles.splice(i, 1);
+                }
+            }
+        }
+
+        function draw() {
+            // Limpiar pantalla
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Dibujar Suelo
+            ctx.fillStyle = '#444';
+            ctx.fillRect(0, player.groundY + player.height, canvas.width, 50);
+
+            // Seleccionar el Sprite actual del Jugador
+            let currentSprite;
+            if (player.isJumping) {
+                currentSprite = images.jump;
+            } else {
+                const runSprites = [images.run1, images.run2, images.run3, images.run4];
+                currentSprite = runSprites[player.runFrame];
+            }
+
+            // Dibujar Jugador
+            if (currentSprite) {
+                ctx.drawImage(currentSprite, player.x, player.y, player.width, player.height);
+            }
+
+            // Dibujar Obstáculos
+            ctx.fillStyle = '#e74c3c';
+            for (let obs of obstacles) {
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+            }
+
+            // Dibujar Puntuación
+            ctx.fillStyle = '#fff';
+            ctx.font = '20px "Eigerdals Heavy", sans-serif';
+            ctx.fillText(`Puntos: ${Math.floor(score)}`, 20, 35);
+
+            // Pantalla Game Over
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#ff4757';
+                ctx.font = '36px "Eigerdals Heavy", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('¡GAME OVER!', canvas.width / 2, canvas.height / 2 - 10);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = '18px sans-serif';
+                ctx.fillText('Presiona "R" para reiniciar', canvas.width / 2, canvas.height / 2 + 30);
+                ctx.textAlign = 'start';
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            if (!gameOver) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+    </script>
+</body>
+</html>
