@@ -45,6 +45,7 @@
             border-radius: 10px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.5);
             display: block;
+            image-rendering: pixelated; /* Mantiene bordes nítidos */
         }
 
         .instructions {
@@ -68,7 +69,10 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // --- RUTA BASE DE TUS SPRITES (Ajustada a tu estructura de carpetas) ---
+        // Desactivar suavizado para bordes más limpios
+        ctx.imageSmoothingEnabled = false;
+
+        // --- RUTA BASE DE TUS SPRITES ---
         const basePath = 'Images/Glichy Guy Customs/Default/';
 
         // Cargar las imágenes
@@ -92,29 +96,33 @@
             images[key].onload = () => {
                 loadedImages++;
                 if (loadedImages === totalImages) {
-                    // Iniciar el bucle cuando todas las imágenes carguen
                     requestAnimationFrame(gameLoop);
                 }
             };
         }
 
-        // --- PROPIEDADES DEL JUEGO ---
+        // --- PROPIEDADES DEL JUEGO Y DEL JUGADOR ---
         let gravity = 0.6;
         let gameSpeed = 5;
         let score = 0;
         let gameOver = false;
         let frameCount = 0;
 
-        // Jugador
+        // Sprites originales: 172 x 156 px
+        // Escala al 50%: width 86, height 78 (mantiene aspect ratio exacto)
+        const playerWidth = 86;
+        const playerHeight = 78;
+        const groundLevel = 180; // Posición 'y' para que encaje con el suelo
+
         const player = {
             x: 80,
-            y: 200,
-            width: 50,
-            height: 50,
+            y: groundLevel,
+            width: playerWidth,
+            height: playerHeight,
             velocityY: 0,
             isJumping: false,
             runFrame: 0,
-            groundY: 200
+            groundY: groundLevel
         };
 
         // Obstáculos
@@ -124,7 +132,7 @@
         // Control de teclado
         window.addEventListener('keydown', (e) => {
             if ((e.code === 'Space' || e.code === 'ArrowUp') && !player.isJumping && !gameOver) {
-                player.velocityY = -12;
+                player.velocityY = -13;
                 player.isJumping = true;
             }
             if (e.code === 'KeyR' && gameOver) {
@@ -162,9 +170,9 @@
                 player.isJumping = false;
             }
 
-            // Animación del jugador
+            // Animación del jugador (cambio de frame cada 6 ciclos)
             if (!player.isJumping && frameCount % 6 === 0) {
-                player.runFrame = (player.runFrame + 1) % 4; // Ciclo entre 0, 1, 2, 3
+                player.runFrame = (player.runFrame + 1) % 4;
             }
 
             // Generar Obstáculos
@@ -172,7 +180,7 @@
             if (obstacleTimer > 100 - (gameSpeed * 2) && Math.random() < 0.5) {
                 obstacles.push({
                     x: canvas.width,
-                    y: player.groundY + 10,
+                    y: player.groundY + (player.height - 40),
                     width: 30,
                     height: 40
                 });
@@ -184,11 +192,12 @@
                 let obs = obstacles[i];
                 obs.x -= gameSpeed;
 
-                // Colisión (AABB simples)
+                // Colisión (AABB) con margen para bordes del sprite
+                const padding = 10;
                 if (
-                    player.x < obs.x + obs.width &&
-                    player.x + player.width > obs.x &&
-                    player.y < obs.y + obs.height &&
+                    player.x + padding < obs.x + obs.width &&
+                    player.x + player.width - padding > obs.x &&
+                    player.y + padding < obs.y + obs.height &&
                     player.y + player.height > obs.y
                 ) {
                     gameOver = true;
@@ -218,7 +227,7 @@
                 currentSprite = runSprites[player.runFrame];
             }
 
-            // Dibujar Jugador
+            // Dibujar Jugador con las dimensiones ajustadas
             if (currentSprite) {
                 ctx.drawImage(currentSprite, player.x, player.y, player.width, player.height);
             }
